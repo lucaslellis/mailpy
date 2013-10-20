@@ -1,0 +1,156 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+"""mailpy
+
+Author: Lucas Pimentel Lellis (lucaslellis [at] gmail [dot] com)
+Description: A simple command-line interface
+             mail sender
+			 To use it as a module, just rename it to mail.py
+
+Copyright 2013 Lucas Pimentel Lellis
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Lesser General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Lesser General Public License for more details.
+
+You should have received a copy of the GNU Lesser General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+"""
+
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.Header import Header
+from email import encoders
+from optparse import OptionParser
+import fileinput
+import getpass
+import os
+import smtplib
+import socket
+import sys
+
+SEPARATOR=","
+DEFAULT_MTA="localhost"
+
+def process_options(args):
+	usage = ("Usage: %prog [options] recipients\n"
+	         "       %prog -h")
+	parser = OptionParser(usage)
+	parser.add_option("-a", "--attachments", dest="attachments",
+					  help="Comma-separated list of message's ATTACHMENTS")
+	parser.add_option("-f", "--from", dest="sender",
+					  help="Message's SENDER - defaults to username@hostname")
+	parser.add_option("-m", "--mta", dest="mta",
+					  help="MTA (SMTP Server) to be used - defaults to %s" % DEFAULT_MTA, default=DEFAULT_MTA)
+	parser.add_option("-s", "--subject", dest="subject",
+					  help="Message's SUBJECT - MANDATORY")
+	parser.add_option("-t", dest="html", action="store_true", default=False,
+					  help="Message's body is in HTML format")
+					  
+	(options, args) = parser.parse_args()
+
+	if len(args) != 1:
+		parser.error("incorrect number of arguments")
+
+	errors = False
+	optional_args = ["attachments", "mta", "sender"] 
+	for key, value in options.__dict__.items():
+		if (not key in optional_args) and (value is None):
+			errors = True
+			break	
+	
+	if errors:	
+		parser.error("Missing option(s)")
+	
+	return options
+	
+def process_attachments(attachments_list):
+	parts = []
+	if attachments_list:
+		for filename in attachments_list:
+			try:
+				with open(filename, 'rb') as attached_file:
+					part = MIMEBase('application', "octet-stream")
+					part.set_payload(attached_file.read())
+					encoders.encode_base64(part)
+					attachment = 'attachment; filename="%s"' % os.path.basename(filename)
+					part.add_header('Content-Disposition', attachment)
+					parts.append(part)
+			except IOError, e:
+				print "WARNING: Error reading attachment file - %s" % e
+			
+	return parts
+
+def sendmail(body, sender, recipients_list, mta, subject, attachments_list, html=False):
+	"""
+		Ref: http://mg.pov.lt/blog/unicode-emails-in-python.html
+			 http://code.activestate.com/recipes/473810/
+	"""
+	
+	# The header charset automatically reverts to UTF-8 if ISO-8859-1 is not fit
+	header_charset = "ISO-8859-1"
+	for body_charset in "US-ASCII", "ISO-8859-1", "UTF-8":
+		try:
+			body.encode(body_charset)
+		except UnicodeError:
+			pass
+		else:
+			break
+	
+	messageRoot = MIMEMultipart("related")
+	messageRoot["From"] = sender.encode("ascii")
+	messageRoot["To"] = ",".join(recipients_list).encode("ascii")
+	messageRoot["Subject"] = Header(unicode(subject, "utf-8"), header_charset)
+	
+	messageAltern = MIMEMultipart("alternative")
+	messageAltern.attach(MIMEText(body, "plain", body_charset))	
+	if html:
+		messageAltern.attach(MIMEText(body, "html", body_charset))
+	
+	messageRoot.attach(messageAltern)
+	
+	for part in process_attachments(attachments_list):
+		messageRoot.attach(part)
+		
+	try:
+		smtpObj = smtplib.SMTP(mta)
+		smtpObj.sendmail(sender, recipients_list, messageRoot.as_string())
+		smtpObj.quit()
+		return 0
+	except smtplib.SMTPException, e:
+		print "Error sending email: %s" % e
+		return 1
+
+def main(argv=None):
+    if argv is None:
+        argv = sys.argv
+
+	options = process_options(argv[1:])
+	
+	if options.sender is None:
+		username = getpass.getuser()
+		hostname = socket.gethostname()
+		options.sender = "%s@%s" % (username, hostname)
+	
+	rec_list = argv[-1].split(SEPARATOR)
+	
+	if options.attachments:
+		attach_list = options.attachments.split(SEPARATOR)
+	else:
+		attach_list = None
+	
+	body = sys.stdin.read()
+	
+	sendmail(body, options.sender, rec_list, options.mta, options.subject, attach_list, options.html)
+	
+if __name__ == "__main__":
+	sys.exit(main())
