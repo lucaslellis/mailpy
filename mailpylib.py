@@ -57,7 +57,7 @@ def sendmail(body, sender, recipients_list, mta, subject, attachments_list, html
     """
 
     body_charset = ""
-    for body_charset in "US-ASCII", "ISO-8859-1", "UTF-8":
+    for body_charset in "US-ASCII", "UTF-8":
         try:
             body.encode(body_charset)
         except UnicodeError:
@@ -68,9 +68,9 @@ def sendmail(body, sender, recipients_list, mta, subject, attachments_list, html
     message_root = MIMEMultipart("related")
     message_root["From"] = sender.encode("ascii")
     message_root["To"] = ",".join(recipients_list).encode("ascii")
-    for subject_charset in "US-ASCII", "ISO-8859-1", "UTF-8":
+    for subject_charset in "US-ASCII", "UTF-8":
         try:
-            message_root["Subject"] = subject.decode(subject_charset)
+            message_root["Subject"] = subject.encode(subject_charset)
         except UnicodeError:
             pass
         else:
