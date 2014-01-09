@@ -50,36 +50,21 @@ def process_attachments(attachments_list):
     return parts
 
 
-def sendmail(body, sender, recipients_list, mta, subject, attachments_list, html=False):
+def sendmail(body, sender, recipients_list, mta, subject, attachments_list, html=False, charset="UTF-8"):
     """
         Ref: http://mg.pov.lt/blog/unicode-emails-in-python.html
              http://code.activestate.com/recipes/473810/
     """
 
-    body_charset = ""
-    for body_charset in "US-ASCII", "UTF-8":
-        try:
-            body.encode(body_charset)
-        except UnicodeError:
-            pass
-        else:
-            break
-
     message_root = MIMEMultipart("related")
     message_root["From"] = sender.encode("ascii")
     message_root["To"] = ",".join(recipients_list).encode("ascii")
-    for subject_charset in "US-ASCII", "UTF-8":
-        try:
-            message_root["Subject"] = subject.encode(subject_charset)
-        except UnicodeError:
-            pass
-        else:
-            break
+    message_root["Subject"] = subject.encode(charset)
 
     message_altern = MIMEMultipart("alternative")
-    message_altern.attach(MIMEText(body, "plain", body_charset))
+    message_altern.attach(MIMEText(body, "plain", charset))
     if html:
-        message_altern.attach(MIMEText(body, "html", body_charset))
+        message_altern.attach(MIMEText(body, "html", charset))
 
     message_root.attach(message_altern)
 
