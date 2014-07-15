@@ -88,8 +88,18 @@ def main(argv=None):
             attach_list = None
 
         body = sys.stdin.read()
-
-        sendmail(body, options.sender, rec_list, options.mta, options.subject, attach_list, options.html)
+        
+        supported_charsets = [sys.getdefaultencoding(), 'ascii', 'iso-8859-1', 'utf-8']
+        for term_charset in supported_charsets:
+            try:
+                unicode(body, term_charset)
+                unicode(options.subject, term_charset)
+            except UnicodeError:
+                pass
+            else:
+                break
+        
+        sendmail(body, options.sender, rec_list, options.mta, options.subject, attach_list, options.html, charset=term_charset)
 
 
 if __name__ == "__main__":
