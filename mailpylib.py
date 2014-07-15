@@ -32,6 +32,7 @@ import socket
 from email.MIMEBase import MIMEBase
 from email.MIMEMultipart import MIMEMultipart
 from email.MIMEText import MIMEText
+from email.header import Header
 
 def process_attachments(attachments_list):
     parts = []
@@ -59,7 +60,9 @@ def sendmail(body, sender, recipients_list, mta, subject, attachments_list, html
     message_root = MIMEMultipart("related")
     message_root["From"] = sender.encode("ascii")
     message_root["To"] = ",".join(recipients_list).encode("ascii")
-    message_root["Subject"] = subject.encode(charset)
+    
+    hdr = Header(subject, charset)
+    message_root["Subject"] = hdr
 
     message_altern = MIMEMultipart("alternative")
     message_altern.attach(MIMEText(body, "plain", charset))
